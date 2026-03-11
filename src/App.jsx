@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -80,6 +82,42 @@ export default function HailLookup() {
       "Very High": { bg: "#3a0000", text: "#f87171", border: "#991b1b" },
     };
     return map[level] || map["Low"];
+  };
+
+  const resultsRef = useRef(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const downloadPDF = async () => {
+    if (!resultsRef.current) return;
+    setPdfLoading(true);
+    try {
+      const canvas = await html2canvas(resultsRef.current, {
+        backgroundColor: "#0a0c10",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let yOffset = 0;
+      let remaining = imgHeight;
+      while (remaining > 0) {
+        pdf.addImage(imgData, "PNG", 0, -yOffset, imgWidth, imgHeight);
+        remaining -= pageHeight;
+        yOffset += pageHeight;
+        if (remaining > 0) pdf.addPage();
+      }
+      const filename = `hail-report-${(result?.location?.county || "report").replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      pdf.save(filename);
+    } catch (e) {
+      console.error("PDF generation failed:", e);
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -295,7 +333,7 @@ export default function HailLookup() {
 
         {/* Results */}
         {result && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div ref={resultsRef} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Location + Risk */}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
@@ -427,6 +465,40 @@ export default function HailLookup() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Download PDF button */}
+        {result && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, maxWidth: 900, margin: "8px auto 0" }}>
+            <button
+              onClick={downloadPDF}
+              disabled={pdfLoading}
+              style={{
+                background: pdfLoading ? "#0a2a4a" : "linear-gradient(135deg, #0f3460, #1e5799)",
+                color: pdfLoading ? "#4a6a8a" : "#93c5fd",
+                border: "1px solid #1e3a5f",
+                padding: "10px 24px",
+                borderRadius: 4,
+                cursor: pdfLoading ? "wait" : "pointer",
+                fontSize: 12,
+                fontFamily: "'Courier New', monospace",
+                letterSpacing: "0.15em",
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                boxShadow: pdfLoading ? "none" : "0 0 12px #1e3a5f88"
+              }}
+            >
+              {pdfLoading ? (
+                "GENERATING..."
+              ) : (
+                <>
+                  <span style={{ fontSize: 14 }}>↓</span> DOWNLOAD PDF REPORT
+                </>
+              )}
+            </button>
           </div>
         )}
 

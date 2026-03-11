@@ -8,7 +8,7 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Montserrat:wght@700&di
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
-const systemPrompt = `You are a severe weather research assistant specializing in hail and storm data. When given an address, perform ONE focused web search for NOAA Storm Events Database records for that location's county/state covering the past 5 years, then immediately return the JSON. Do not perform multiple searches — gather everything needed in a single search query and synthesize the result.
+const systemPrompt = `You are a severe weather research assistant with deep knowledge of NOAA Storm Events Database records, historical hail patterns, and severe weather history across the United States. When given a property address, use your training knowledge to provide accurate hail and severe weather data for that county and state. Base your response on NOAA Storm Events data, known hail frequency maps, and regional severe weather patterns. If you are uncertain of specific event dates, provide reasonable estimates based on known patterns for that region.
 
 Return ONLY valid JSON (no markdown, no backticks, no preamble) with this exact structure:
 {
@@ -87,7 +87,6 @@ export default function HailLookup() {
         model: "claude-sonnet-4-6",
         max_tokens: 4000,
         system: systemPrompt,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
         messages,
       }),
     });
@@ -119,33 +118,8 @@ export default function HailLookup() {
         },
       ];
 
-      let data;
-      // Max 2 rounds: 1 search + 1 synthesis (keeps within Vercel free tier 60s limit)
-      for (let round = 0; round < 2; round++) {
-        data = await callAPI(messages);
-
-        if (data.stop_reason === "end_turn") break;
-
-        // If the model used tools, feed results back and continue
-        if (data.stop_reason === "tool_use") {
-          // Append the assistant's response (with tool_use blocks)
-          messages = [...messages, { role: "assistant", content: data.content }];
-
-          // Build tool_result blocks for every tool_use block
-          const toolResults = data.content
-            .filter((b) => b.type === "tool_use")
-            .map((b) => ({
-              type: "tool_result",
-              tool_use_id: b.id,
-              content: b.content ?? "Search completed.",
-            }));
-
-          messages = [...messages, { role: "user", content: toolResults }];
-        } else {
-          // Any other stop reason — just break
-          break;
-        }
-      }
+      // Single direct call — no agentic loop needed (no web search tool)
+      const data = await callAPI(messages);
 
       setRawLog(data);
 

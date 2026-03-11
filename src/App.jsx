@@ -8,7 +8,10 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Montserrat:wght@700&di
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
-const systemPrompt = `You are a severe weather research assistant with deep knowledge of NOAA Storm Events Database records, historical hail patterns, and severe weather history across the United States. When given a property address, use your training knowledge to provide accurate hail and severe weather data for that county and state. Base your response on NOAA Storm Events data, known hail frequency maps, and regional severe weather patterns. If you are uncertain of specific event dates, provide reasonable estimates based on known patterns for that region.
+const systemPrompt = `You are a severe weather research assistant specializing in hail and storm data. When given an address, you will:
+1. Search NOAA's Storm Events Database (https://www.ncdc.noaa.gov/stormevents/) for hail events in the past 5 years for that location's county and state.
+2. Search for any significant tornado, severe thunderstorm, or wind events in the same area.
+3. Return structured data based on what you find.
 
 Return ONLY valid JSON (no markdown, no backticks, no preamble) with this exact structure:
 {
@@ -79,14 +82,17 @@ export default function HailLookup() {
     return map[level] || map["Low"];
   };
 
+  const API_BASE = import.meta.env.VITE_API_URL || "";
+
   const callAPI = async (messages) => {
-    const response = await fetch("/api/anthropic", {
+    const response = await fetch(`${API_BASE}/api/anthropic`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 4000,
         system: systemPrompt,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
         messages,
       }),
     });
@@ -118,8 +124,25 @@ export default function HailLookup() {
         },
       ];
 
-      // Single direct call — no agentic loop needed (no web search tool)
-      const data = await callAPI(messages);
+      let data;
+      // Agentic loop: each callAPI is one HTTP round-trip, Render has no timeout
+      for (let round = 0; round < 5; round++) {
+        data = await callAPI(messages);
+        if (data.stop_reason === "end_turn") break;
+        if (data.stop_reason === "tool_use") {
+          messages = [...messages, { role: "assistant", content: data.content }];
+          const toolResults = data.content
+            .filter((b) => b.type === "tool_use")
+            .map((b) => ({
+              type: "tool_result",
+              tool_use_id: b.id,
+              content: b.content ?? "Search completed.",
+            }));
+          messages = [...messages, { role: "user", content: toolResults }];
+        } else {
+          break;
+        }
+      }
 
       setRawLog(data);
 

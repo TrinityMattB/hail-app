@@ -95,11 +95,17 @@ export default function HailLookup() {
         messages,
       }),
     });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || `HTTP ${response.status}`);
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Server error: ${text.slice(0, 150)}`);
     }
-    return response.json();
+    if (!response.ok) {
+      throw new Error(data.error?.message || `HTTP ${response.status}`);
+    }
+    return data;
   };
 
   const lookup = async () => {

@@ -85,32 +85,48 @@ export default function HailLookup() {
   };
 
   const resultsRef = useRef(null);
+  const headerRef = useRef(null);
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const downloadPDF = async () => {
-    if (!resultsRef.current) return;
+    if (!resultsRef.current || !headerRef.current) return;
     setPdfLoading(true);
     try {
-      const canvas = await html2canvas(resultsRef.current, {
-        backgroundColor: "#0a0c10",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-      });
-      const imgData = canvas.toDataURL("image/png");
+      const scale = 2;
+      const [headerCanvas, resultsCanvas] = await Promise.all([
+        html2canvas(headerRef.current, { backgroundColor: "#0d1117", scale, useCORS: true, logging: false }),
+        html2canvas(resultsRef.current, { backgroundColor: "#0a0c10", scale, useCORS: true, logging: false }),
+      ]);
+
       const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let yOffset = 0;
-      let remaining = imgHeight;
-      while (remaining > 0) {
-        pdf.addImage(imgData, "PNG", 0, -yOffset, imgWidth, imgHeight);
-        remaining -= pageHeight;
-        yOffset += pageHeight;
-        if (remaining > 0) pdf.addPage();
+
+      const headerImgData = headerCanvas.toDataURL("image/png");
+      const headerH = (headerCanvas.height * pageWidth) / headerCanvas.width;
+      const resultsImgData = resultsCanvas.toDataURL("image/png");
+      const resultsH = (resultsCanvas.height * pageWidth) / resultsCanvas.width;
+
+      // Page 1: dark bg → header → results
+      pdf.setFillColor(10, 12, 16);
+      pdf.rect(0, 0, pageWidth, pageHeight, "F");
+      pdf.addImage(headerImgData, "PNG", 0, 0, pageWidth, headerH);
+
+      let resultY = headerH;
+      let resultOffset = 0;
+
+      while (resultOffset < resultsH) {
+        const availableH = pageHeight - resultY;
+        pdf.addImage(resultsImgData, "PNG", 0, resultY - resultOffset, pageWidth, resultsH);
+        resultOffset += availableH;
+        if (resultOffset < resultsH) {
+          pdf.addPage();
+          pdf.setFillColor(10, 12, 16);
+          pdf.rect(0, 0, pageWidth, pageHeight, "F");
+          resultY = 0;
+        }
       }
+
       const filename = `hail-report-${(result?.location?.county || "report").replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`;
       pdf.save(filename);
     } catch (e) {
@@ -213,10 +229,13 @@ export default function HailLookup() {
       padding: "0"
     }}>
       {/* Header */}
-      <div style={{
+      <div ref={headerRef} style={{
         background: "linear-gradient(180deg, #0d1117 0%, #0a0c10 100%)",
         borderBottom: "1px solid #1e3a5f",
-        padding: isMobile ? "12px 16px" : "16px 32px",
+        paddingTop: isMobile ? "calc(env(safe-area-inset-top, 0px) + 16px)" : "16px",
+        paddingRight: isMobile ? "16px" : "32px",
+        paddingBottom: isMobile ? "12px" : "16px",
+        paddingLeft: isMobile ? "16px" : "32px",
         display: "flex",
         alignItems: "center",
         gap: isMobile ? "12px" : "24px",
@@ -333,7 +352,12 @@ export default function HailLookup() {
 
         {/* Results */}
         {result && (
-          <div ref={resultsRef} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div ref={resultsRef} style={{ display: "flex", flexDirection: "column", gap: 16, background: "#0a0c10", paddingTop: 4 }}>
+            {/* Queried address — visible in PDF */}
+            <div style={{ borderBottom: "1px solid #1a2a3a", paddingBottom: 10, marginBottom: 4 }}>
+              <span style={{ fontSize: 9, color: "#2a4a6a", letterSpacing: "0.2em" }}>PROPERTY ADDRESS LOOKUP · </span>
+              <span style={{ fontSize: 12, color: "#93c5fd", fontFamily: "'Courier New', monospace" }}>{address}</span>
+            </div>
 
             {/* Location + Risk */}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>

@@ -23,7 +23,7 @@ CRITICAL FORENSIC REQUIREMENTS — these four fields must ALWAYS be present for 
 - "source": the direct NOAA Storm Events URL or record ID for this specific event (e.g. "https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=XXXXXXX"). Never use a generic label — always provide the specific citation.
 - "dataConfidence": rate each event using these criteria:
     - High: trained spotter or official station within ~5 miles, specific size reported
-    - Moderate: radar-estimated OR spotter 5-15 miles away OR size approximate
+    - Moderate: radar-estimated OR spotter 5-15 miles away OR size approximateh
     - Low: county-level only with no precise location, OR size not reported, OR damage report with no direct hail observation
   Always include a plain-English "basis" sentence explaining the rating.
 
@@ -435,7 +435,7 @@ export default function HailLookup() {
             {result.hailEvents?.length > 0 && (
               <div style={{ border: "1px solid #1e3a5f", borderRadius: 8, background: "#0d1117", overflow: "hidden" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #1e3a5f", fontSize: 10, color: "#4a6a8a", letterSpacing: "0.2em" }}>
-                  HAIL EVENTS — PAST 5 YEARS
+                    {["DATE", "SIZE", "SOURCE QUALITY", "LOCATION", "PROPERTY DMG", "INJURIES", "DEATHS"].map(h => (
                 </div>
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? 11 : 12, minWidth: isMobile ? 480 : "auto" }}>
@@ -451,6 +451,7 @@ export default function HailLookup() {
                         <tr key={i} style={{ borderBottom: "1px solid #0f1a24" }}>
                           <td style={{ padding: isMobile ? "8px 10px" : "10px 16px", color: "#93c5fd" }}>{ev.date}</td>
                           <td style={{ padding: isMobile ? "8px 10px" : "10px 16px", color: "#fbbf24", fontWeight: 700 }}>{ev.size}</td>
+                          <td style={{ padding: isMobile ? "8px 10px" : "10px 16px" }}><span style={{ color: ev.dataConfidence?.level === "High" ? "#4ade80" : ev.dataConfidence?.level === "Moderate" ? "#fbbf24" : "#f87171", fontWeight: 700, fontSize: 10, letterSpacing: "0.1em" }}>{ev.dataConfidence?.level ?? "—"}</span>{ev.dataConfidence?.basis && (<div style={{ color: "#4a6a8a", fontSize: 10, marginTop: 2, maxWidth: 180 }}>{ev.dataConfidence.basis}</div>)}</td>  
                           <td style={{ padding: isMobile ? "8px 10px" : "10px 16px", color: "#cbd5e1" }}>{ev.location}</td>
                           <td style={{ padding: isMobile ? "8px 10px" : "10px 16px", color: ev.propertyDamage !== "$0" ? "#f87171" : "#4a6a8a" }}>{ev.propertyDamage}</td>
                           <td style={{ padding: isMobile ? "8px 10px" : "10px 16px", color: ev.injuries > 0 ? "#fb923c" : "#4a6a8a" }}>{ev.injuries}</td>
